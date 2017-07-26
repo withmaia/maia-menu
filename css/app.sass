@@ -1,0 +1,54 @@
+$purple: #515CA0
+$padding: 20px
+
+*
+    margin: 0
+    padding: 0
+    box-sizing: border-box
+
+body
+    font: 22px/20px "DIN Next LT Pro"
+    background: $purple
+    color: #fff
+    padding: $padding
+    -webkit-font-smoothing: antialiased
+
+.item
+    padding: 25px 30px
+    border: 1px solid color(#000 a(0.5))
+    border-radius: 10px
+    margin: $padding 0
+
+    &:last-child
+        margin-bottom: 0
+
+.item.unit, .item.on-off
+    display: flex
+    justify-content: center
+    align-items: center
+    :first-child
+        flex-grow: 1
+
+.item.on-off.on
+    background: yellow
+    color: black
+
+#app-app
+    display: flex
+    flex-direction: column
+    height: 100%
+
+#logo
+    flex-grow: 0
+    width: 50px
+    height: 50px
+
+.spacer
+    flex-grow: 1
+
+.name
+    display: block
+    font-weight: bold
+    i.fa
+        margin-right: 20px
+        color: color(#000 a(0.5))
