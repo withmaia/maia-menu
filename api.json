@@ -1,0 +1,24 @@
+{
+    "name": "Maia API",
+    "slug": "api.maia",
+    "port": 8182,
+    "routes": [
+        {
+            "request": {
+                "method": "post",
+                "path": "/:service/:method.json"
+            },
+            "steps": [
+                {
+                    "type": "remote",
+                    "service": "$req.params.service",
+                    "method": "$req.params.method",
+                    "args": "$req.body.args"
+                }
+            ],
+            "response": {
+                "content_type": "application/json"
+            }
+        }
+    ]
+}

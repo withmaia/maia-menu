@@ -2,6 +2,9 @@ React = require 'preact'
 React.__spread = Object.assign
 Redux = require 'redux'
 update = require 'immutability-helper'
+fetch$ = require 'kefir-fetch'
+fetch$.setDefaultOptions
+    base_url: 'http://192.168.0.182:8182'
 
 window.onhashchange = ->
     Store.dispatch
@@ -22,42 +25,41 @@ treeFromLocation = (location, leaf, root={}, at={}) ->
         Object.assign at, leaf
         return root
 
+updateItemAtLocation = (item, location, update) ->
+    item_update = {}
+    item_update[item.key] = {$merge: update}
+    Store.dispatch
+        type: 'update'
+        update:
+            menu: treeFromLocation location, {children: item_update}
+
 actions =
     toggle: (item) ->
         location = Store.getState().location
+        doUpdate = (update) ->
+            updateItemAtLocation item, location, update
 
-        updateLight = (update) ->
-            light_update = {}
-            light_update[item.key] = {$merge: update}
-            Store.dispatch
-                type: 'update'
-                update:
-                    menu:
-                        treeFromLocation location, {children: light_update}
-
-        updateLight {loading: true}
-        setTimeout ->
-            new_value = if item.value == 'on' then 'off' else 'on'
-            updateLight {value: new_value, loading: false}
-        , 500
+        doUpdate {loading: true}
+        fetch$ 'post', "/maia:hue/toggleState.json", {body: {args: [item.key]}}
+            .onValue (response) ->
+                console.log '[response]', response
+                new_value = if response.on then 'on' else 'off'
+                doUpdate {value: new_value, loading: false}
+        # setTimeout ->
+        #     new_value = if item.value == 'on' then 'off' else 'on'
+        #     doUpdate {value: new_value, loading: false}
+        # , Math.random() * 500
 
     reload: (item) ->
         location = Store.getState().location
+        doUpdate = (update) ->
+            updateItemAtLocation item, location, update
 
-        updateValue = (update) ->
-            value_update = {}
-            value_update[item.key] = {$merge: update}
-            Store.dispatch
-                type: 'update'
-                update:
-                    menu:
-                        treeFromLocation location, {children: value_update}
-
-        updateValue {loading: true}
+        doUpdate {loading: true}
         setTimeout ->
             new_value = item.value + (Math.random() - 0.5) * 5
-            updateValue {value: new_value, loading: false}
-        , 500
+            doUpdate {value: new_value, loading: false}
+        , Math.random() * 500
 
     navigate: (item) ->
         window.location.hash = Store.getState().location + '/' + item.key
@@ -92,26 +94,26 @@ initial_state =
                 icon: 'lightbulb-o'
                 action: 'navigate'
                 children:
-                    office:
-                        key: 'office'
+                    office_light:
+                        key: 'office_light'
                         name: 'Office'
                         type: 'on_off'
                         value: 'on'
                         action: 'toggle'
-                    living_room:
-                        key: 'living_room'
+                    living_room_light:
+                        key: 'living_room_light'
                         name: 'Living Room'
                         type: 'on_off'
                         value: 'off'
                         action: 'toggle'
-                    bedroom:
-                        key: 'bedroom'
+                    bedroom_lights:
+                        key: 'bedroom_lights'
                         name: 'Bedroom'
                         type: 'on_off'
                         value: 'on'
                         action: 'toggle'
-                    all:
-                        key: 'all'
+                    all_lights:
+                        key: 'all_lights'
                         name: 'All'
                         type: 'on_off'
                         value: 'off'

@@ -1,6 +1,7 @@
 {
   "dependencies": {
     "immutability-helper": "^2.3.0",
+    "kefir-fetch": "^0.1.14",
     "metaserve": "^0.7.1",
     "preact": "^8.2.1",
     "redux": "^3.7.2"
