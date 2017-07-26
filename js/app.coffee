@@ -25,6 +25,9 @@ treeFromLocation = (location, leaf, root={}, at={}) ->
         Object.assign at, leaf
         return root
 
+remote = (service, method, args...) ->
+    fetch$ 'post', "/#{service}/#{method}.json", {body: {args}}
+
 updateItemAtLocation = (item, location, update) ->
     item_update = {}
     item_update[item.key] = {$merge: update}
@@ -33,27 +36,39 @@ updateItemAtLocation = (item, location, update) ->
         update:
             menu: treeFromLocation location, {children: item_update}
 
-actions =
-    toggle: (item) ->
-        location = Store.getState().location
-        doUpdate = (update) ->
-            updateItemAtLocation item, location, update
+updater = ({service, method, args, item, before, after}) ->
+    location = Store.getState().location
+    doUpdate = updateItemAtLocation.bind null, item, location
+    doUpdate before
+    remote service, method, args...
+        .onValue (response) ->
+            console.log '[response]', response
+            doUpdate after(response)
 
-        doUpdate {loading: true}
-        fetch$ 'post', "/maia:hue/toggleState.json", {body: {args: [item.key]}}
-            .onValue (response) ->
-                console.log '[response]', response
-                new_value = if response.on then 'on' else 'off'
-                doUpdate {value: new_value, loading: false}
-        # setTimeout ->
-        #     new_value = if item.value == 'on' then 'off' else 'on'
-        #     doUpdate {value: new_value, loading: false}
-        # , Math.random() * 500
+actions =
+    getState: (item) -> updater
+        service: 'maia:hue'
+        method: 'getState'
+        args: [item.key]
+        item: item
+        before: {loading: true}
+        after: (response) ->
+            new_value = if response.on then 'on' else 'off'
+            {value: new_value, loading: false, loaded: true}
+
+    toggleState: (item) -> updater
+        service: 'maia:hue'
+        method: 'toggleState'
+        args: [item.key]
+        item: item
+        before: {loading: true}
+        after: (response) ->
+            new_value = if response.on then 'on' else 'off'
+            {value: new_value, loading: false, loaded: true}
 
     reload: (item) ->
         location = Store.getState().location
-        doUpdate = (update) ->
-            updateItemAtLocation item, location, update
+        doUpdate = updateItemAtLocation.bind null, item, location
 
         doUpdate {loading: true}
         setTimeout ->
@@ -64,9 +79,13 @@ actions =
     navigate: (item) ->
         window.location.hash = Store.getState().location + '/' + item.key
 
-doAction = (item) -> (args...) ->
+doAction = (item) ->
     console.log '[action item]', item
-    actions[item.action](item, args...)
+    actions[item.action](item)
+
+doLoad = (item) ->
+    console.log '[load item]', item
+    actions[item.load](item)
 
 descend = (menu, location) ->
     console.log '[location]', location
@@ -98,26 +117,28 @@ initial_state =
                         key: 'office_light'
                         name: 'Office'
                         type: 'on_off'
-                        value: 'on'
-                        action: 'toggle'
+                        loaded: false
+                        load: 'getState'
+                        action: 'toggleState'
                     living_room_light:
                         key: 'living_room_light'
                         name: 'Living Room'
                         type: 'on_off'
-                        value: 'off'
-                        action: 'toggle'
+                        loaded: false
+                        load: 'getState'
+                        action: 'toggleState'
                     bedroom_lights:
                         key: 'bedroom_lights'
                         name: 'Bedroom'
                         type: 'on_off'
-                        value: 'on'
-                        action: 'toggle'
+                        loaded: false
+                        action: 'toggleStates'
                     all_lights:
                         key: 'all_lights'
                         name: 'All'
                         type: 'on_off'
-                        value: 'off'
-                        action: 'toggle'
+                        loaded: false
+                        action: 'toggleStates'
             climate:
                 key: 'climate'
                 name: 'Climate'
@@ -213,7 +234,7 @@ Menu = ({menu}) ->
 
 MenuItem = ({item}) ->
     console.log '[MenuItem item]', item
-    <div className="item" onClick={doAction(item)}>
+    <div className="item" onClick={doAction.bind(null, item)}>
         {if item.name?
             <span className='name'>
                 {if item.icon?
@@ -224,16 +245,23 @@ MenuItem = ({item}) ->
         }
     </div>
 
-OnOffValue = ({item}) ->
-    <div className="item on-off #{item.value}" onClick={doAction(item)}>
-        <span className='name'>{item.name}</span>
-        {if item.loading
-            <Spinner />
-        }
-    </div>
+class OnOffValue extends React.Component
+    componentDidMount: ->
+        {item} = @props
+        if item.load? and !item.loaded
+            doLoad(item)
+
+    render: ->
+        {item} = @props
+        <div className="item on-off #{item.value}" onClick={doAction.bind(null, item)}>
+            <span className='name'>{item.name}</span>
+            {if item.loading
+                <Spinner />
+            }
+        </div>
 
 UnitValue = ({item}) ->
-    <div className="item unit #{item.unit}" onClick={doAction(item)}>
+    <div className="item unit #{item.unit}" onClick={doAction.bind(null, item)}>
         <span className='name'>{item.name}</span>
         <span className='value'>{item.value.toFixed(2)}{item.unit}</span>
         {if item.loading
