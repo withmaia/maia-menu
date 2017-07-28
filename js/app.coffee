@@ -3,6 +3,7 @@ React.__spread = Object.assign
 Redux = require 'redux'
 update = require 'immutability-helper'
 fetch$ = require 'kefir-fetch'
+
 fetch$.setDefaultOptions
     base_url: 'http://192.168.0.182:8182'
 
@@ -46,6 +47,7 @@ updater = ({service, method, args, item, before, after}) ->
             doUpdate after(response)
 
 actions =
+
     getState: (item) -> updater
         service: 'maia:hue'
         method: 'getState'
@@ -56,9 +58,29 @@ actions =
             new_value = if response.on then 'on' else 'off'
             {value: new_value, loading: false, loaded: true}
 
+    getStates: (item) -> updater
+        service: 'maia:hue'
+        method: 'getStates'
+        args: [item.key]
+        item: item
+        before: {loading: true}
+        after: (response) ->
+            new_value = if response.all_on then 'on' else 'off'
+            {value: new_value, loading: false, loaded: true}
+
     toggleState: (item) -> updater
         service: 'maia:hue'
         method: 'toggleState'
+        args: [item.key]
+        item: item
+        before: {loading: true}
+        after: (response) ->
+            new_value = if response.on then 'on' else 'off'
+            {value: new_value, loading: false, loaded: true}
+
+    toggleStates: (item) -> updater
+        service: 'maia:hue'
+        method: 'toggleStates'
         args: [item.key]
         item: item
         before: {loading: true}
@@ -81,7 +103,20 @@ actions =
 
 doAction = (item) ->
     console.log '[action item]', item
-    actions[item.action](item)
+    actions[item.action](item).onValue? ->
+
+        if item.affects_siblings
+            siblings = {}
+            if Array.isArray item.affects_siblings
+                for sibling_key in item.affects_siblings
+                    siblings[sibling_key] = item.parent.children[sibling_key]
+            else
+                for sibling_key, sibling of item.parent.children
+                    if sibling_key != item.key
+                        siblings[sibling_key] = sibling
+            console.log '[affecting siblings]', siblings
+            for sibling_key, sibling of siblings
+                doLoad sibling
 
 doLoad = (item) ->
     console.log '[load item]', item
@@ -120,6 +155,7 @@ initial_state =
                         loaded: false
                         load: 'getState'
                         action: 'toggleState'
+                        affects_siblings: ['all_lights']
                     living_room_light:
                         key: 'living_room_light'
                         name: 'Living Room'
@@ -127,18 +163,23 @@ initial_state =
                         loaded: false
                         load: 'getState'
                         action: 'toggleState'
+                        affects_siblings: ['all_lights']
                     bedroom_lights:
                         key: 'bedroom_lights'
                         name: 'Bedroom'
                         type: 'on_off'
                         loaded: false
+                        load: 'getStates'
                         action: 'toggleStates'
+                        affects_siblings: ['all_lights']
                     all_lights:
                         key: 'all_lights'
                         name: 'All'
                         type: 'on_off'
                         loaded: false
+                        load: 'getStates'
                         action: 'toggleStates'
+                        affects_siblings: true
             climate:
                 key: 'climate'
                 name: 'Climate'
@@ -200,6 +241,17 @@ initial_state =
                                 value: 666
                                 action: 'reload'
 
+# Attach parent to each item
+
+attachParent = (root, path=[]) ->
+    if root.children?
+        Object.entries(root.children).map ([child_key, child]) ->
+            child.path = path.concat [child_key]
+            child.parent = root
+            attachParent child, child.path
+
+attachParent(initial_state.menu)
+
 # ------------------------------------------------------------------------------
 
 combined_reducer = (state={}, action) ->
@@ -228,6 +280,7 @@ Menu = ({menu}) ->
                 else if item.children?
                     <MenuItem item=item />
                 }
+                <span className='path'>{item.path.join('/')}</span>
             </div>
         }
     </div>

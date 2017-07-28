@@ -12,6 +12,7 @@ body
     color: #fff
     padding: $padding
     -webkit-font-smoothing: antialiased
+    user-select: none
 
 .item
     padding: 25px 30px
@@ -21,6 +22,16 @@ body
 
     &:last-child
         margin-bottom: 0
+
+    &:active
+        background-color: color(#000 a(0.1))
+
+.path
+    display: block
+    opacity: 0.5
+    font-size: 13px
+    text-align: right
+    margin-top: -10px
 
 .item.unit, .item.on-off
     display: flex
