@@ -5,7 +5,7 @@ update = require 'immutability-helper'
 fetch$ = require 'kefir-fetch'
 
 fetch$.setDefaultOptions
-    base_url: 'http://192.168.0.182:8182'
+    base_url: 'http://api.withmaia.com'
 
 window.onhashchange = ->
     Store.dispatch
@@ -65,7 +65,7 @@ actions =
         item: item
         before: {loading: true}
         after: (response) ->
-            new_value = if response.all_on then 'on' else 'off'
+            new_value = if response.all_on then 'on' else if response.any_on then 'some' else 'off'
             {value: new_value, loading: false, loaded: true}
 
     toggleState: (item) -> updater
@@ -330,7 +330,7 @@ class App extends React.Component
 
     render: ->
         <div id='app-app'>
-            <img id='logo' src='/images/maia-logo.png' />
+            <img id='logo' src='images/maia-logo.png' />
             <div className='spacer' />
             <Menu menu={descend @state.menu, @state.location} />
         </div>
