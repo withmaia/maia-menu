@@ -48,7 +48,7 @@ updater = ({service, method, args, item, before, after}) ->
 
 actions =
 
-    getState: (item) -> updater
+    getLightState: (item) -> updater
         service: 'maia:hue'
         method: 'getState'
         args: [item.key]
@@ -58,7 +58,7 @@ actions =
             new_value = if response.on then 'on' else 'off'
             {value: new_value, loading: false, loaded: true}
 
-    getStates: (item) -> updater
+    getLightStates: (item) -> updater
         service: 'maia:hue'
         method: 'getStates'
         args: [item.key]
@@ -68,7 +68,7 @@ actions =
             new_value = if response.all_on then 'on' else if response.any_on then 'some' else 'off'
             {value: new_value, loading: false, loaded: true}
 
-    toggleState: (item) -> updater
+    toggleLightState: (item) -> updater
         service: 'maia:hue'
         method: 'toggleState'
         args: [item.key]
@@ -78,7 +78,7 @@ actions =
             new_value = if response.on then 'on' else 'off'
             {value: new_value, loading: false, loaded: true}
 
-    toggleStates: (item) -> updater
+    toggleLightStates: (item) -> updater
         service: 'maia:hue'
         method: 'toggleStates'
         args: [item.key]
@@ -88,22 +88,30 @@ actions =
             new_value = if response.on then 'on' else 'off'
             {value: new_value, loading: false, loaded: true}
 
-    reload: (item) ->
-        location = Store.getState().location
-        doUpdate = updateItemAtLocation.bind null, item, location
+    getPrice: (item) -> updater
+        service: 'price'
+        method: 'getPrice'
+        args: [item.key]
+        item: item
+        before: {loading: true}
+        after: (response) ->
+            {value: response.value, loading: false, loaded: true}
 
-        doUpdate {loading: true}
-        setTimeout ->
-            new_value = item.value + (Math.random() - 0.5) * 5
-            doUpdate {value: new_value, loading: false}
-        , Math.random() * 500
+    getWeather: (item) -> updater
+        service: 'weather'
+        method: 'getWeather'
+        args: [item.key]
+        item: item
+        before: {loading: true}
+        after: (response) ->
+            {value: response.temperature, loading: false, loaded: true}
 
     navigate: (item) ->
         window.location.hash = Store.getState().location + '/' + item.key
 
 doAction = (item) ->
     console.log '[action item]', item
-    actions[item.action](item).onValue? ->
+    actions[item.action or item.load](item).onValue? ->
 
         if item.affects_siblings
             siblings = {}
@@ -153,32 +161,32 @@ initial_state =
                         name: 'Office'
                         type: 'on_off'
                         loaded: false
-                        load: 'getState'
-                        action: 'toggleState'
+                        load: 'getLightState'
+                        action: 'toggleLightState'
                         affects_siblings: ['all_lights']
                     living_room_light:
                         key: 'living_room_light'
                         name: 'Living Room'
                         type: 'on_off'
                         loaded: false
-                        load: 'getState'
-                        action: 'toggleState'
+                        load: 'getLightState'
+                        action: 'toggleLightState'
                         affects_siblings: ['all_lights']
                     bedroom_lights:
                         key: 'bedroom_lights'
                         name: 'Bedroom'
                         type: 'on_off'
                         loaded: false
-                        load: 'getStates'
-                        action: 'toggleStates'
+                        load: 'getLightStates'
+                        action: 'toggleLightStates'
                         affects_siblings: ['all_lights']
                     all_lights:
                         key: 'all_lights'
                         name: 'All'
                         type: 'on_off'
                         loaded: false
-                        load: 'getStates'
-                        action: 'toggleStates'
+                        load: 'getLightStates'
+                        action: 'toggleLightStates'
                         affects_siblings: true
             climate:
                 key: 'climate'
@@ -192,14 +200,15 @@ initial_state =
                         type: 'unit'
                         unit: 'º'
                         value: 70.2
-                        action: 'reload'
+                        loaded: false
+                        load: 'getWeather'
                     living_room:
                         key: 'living_room'
                         name: 'Living room'
                         type: 'unit'
                         unit: 'º'
-                        value: 70
-                        action: 'reload'
+                        loaded: false
+                        load: 'getWeather'
             markets:
                 key: 'markets'
                 name: 'Markets'
@@ -211,35 +220,15 @@ initial_state =
                         name: 'Bitcoin'
                         type: 'unit'
                         unit: '$'
-                        value: 2544.5
-                        action: 'reload'
+                        loaded: false
+                        load: 'getPrice'
                     eth:
                         key: 'eth'
                         name: 'Ethereum'
                         type: 'unit'
                         unit: '$'
-                        value: 54.5
-                        action: 'reload'
-                    stocks:
-                        key: 'stocks'
-                        name: 'Stocks'
-                        icon: 'usd'
-                        action: 'navigate'
-                        children:
-                            tesla:
-                                key: 'tesla'
-                                name: 'TSLA'
-                                type: 'unit'
-                                unit: '$'
-                                value: 555
-                                action: 'reload'
-                            apple:
-                                key: 'apple'
-                                name: 'AAPL'
-                                type: 'unit'
-                                unit: '$'
-                                value: 666
-                                action: 'reload'
+                        loaded: false
+                        load: 'getPrice'
 
 # Attach parent to each item
 
@@ -313,14 +302,26 @@ class OnOffValue extends React.Component
             }
         </div>
 
-UnitValue = ({item}) ->
-    <div className="item unit #{item.unit}" onClick={doAction.bind(null, item)}>
-        <span className='name'>{item.name}</span>
-        <span className='value'>{item.value.toFixed(2)}{item.unit}</span>
-        {if item.loading
-            <Spinner />
-        }
-    </div>
+class UnitValue extends React.Component
+    componentDidMount: ->
+        {item} = @props
+        if item.load? and !item.loaded
+            doLoad(item)
+
+    render: ->
+        {item} = @props
+        <div className="item unit #{item.unit}" onClick={doAction.bind(null, item)}>
+            <span className='name'>{item.name}</span>
+            {if item.value?
+                if item.unit == '$'
+                    <span className='value'>${item.value.toFixed(2)}</span>
+                else
+                    <span className='value'>{item.value.toFixed(2)}{item.unit}</span>
+            }
+            {if item.loading
+                <Spinner />
+            }
+        </div>
 
 class App extends React.Component
     constructor: ->
