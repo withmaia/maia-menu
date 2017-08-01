@@ -199,7 +199,6 @@ initial_state =
                         name: 'Office'
                         type: 'unit'
                         unit: 'º'
-                        value: 70.2
                         loaded: false
                         load: 'getWeather'
                     living_room:
